@@ -6,6 +6,8 @@
 //		开发测试所用OpenCV版本：	2.4.9
 //		2014年06月 Created by @浅墨_毛星云
 //		2014年11月 Revised by @浅墨_毛星云
+//   
+//      这是喻雷在学习分水岭算法时的注释文件
 //------------------------------------------------------------------------------------------------
 
 
@@ -30,8 +32,8 @@ using namespace std;
 //-----------------------------------【全局函变量声明部分】--------------------------------------
 //		描述：全局变量的声明
 //-----------------------------------------------------------------------------------------------
-Mat g_maskImage, g_srcImage;
-Point prevPt(-1, -1);
+Mat g_maskImage, g_srcImage;//全局图像，使用鼠标进行图像绘制，g_srcImage只用于显示
+Point prevPt(-1, -1);//初始点定义
 
 //-----------------------------------【全局函数声明部分】--------------------------------------
 //		描述：全局函数的声明
@@ -57,8 +59,8 @@ int main( int argc, char** argv )
 	Mat srcImage,grayImage;
 	g_srcImage.copyTo(srcImage);
 	cvtColor(g_srcImage, g_maskImage, COLOR_BGR2GRAY);
-	cvtColor(g_maskImage, grayImage, COLOR_GRAY2BGR);//grayImage是灰度BGR图
-	g_maskImage = Scalar::all(0);
+	cvtColor(g_maskImage, grayImage, COLOR_GRAY2BGR);//grayImage是灰度BGR图，这个其实没什么大用，看程序可以知道
+	g_maskImage = Scalar::all(0);//设置了为底色图，通过鼠标作图
 
 	//【2】设置鼠标回调函数
 	setMouseCallback( WINDOW_NAME1, on_Mouse, 0 );
@@ -89,7 +91,7 @@ int main( int argc, char** argv )
 			vector<vector<Point> > contours;
 			vector<Vec4i> hierarchy;
 
-			//寻找轮廓,对鼠标所绘图形进行检测
+			//寻找轮廓,对鼠标所绘图形进行检测，可以检测到鼠标绘图区域，
 			findContours(g_maskImage, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
 
 			//轮廓为空时的处理
@@ -97,15 +99,18 @@ int main( int argc, char** argv )
 				continue;//这个continue直接重新执行while（1）
 
 			//拷贝掩膜
-			Mat maskImage(g_maskImage.size(), CV_32S);//这个掩膜很重要
-			maskImage = Scalar::all(0);
+			Mat maskImage(g_maskImage.size(), CV_32S);//这个掩膜很重要，用这个图像进行分水岭标记
+			maskImage = Scalar::all(0);//设置为了底色图
 
 
 			//循环绘制出轮廓
-			for( int index = 0; index >= 0; index = hierarchy[index][0], compCount++ )
-				drawContours(maskImage, contours, index, Scalar::all(compCount+1), -1, 8, hierarchy, INT_MAX);
+			for( int index = 0; index >= 0; index = hierarchy[index][0], compCount++ )//绘制的轮廓部分标记值依次增加的，便于后面部分，
+				drawContours(maskImage, contours, index, Scalar::all(compCount+1), -1, 8, hierarchy, INT_MAX);//这实现了对不同区域用不同值标记
 
-			
+			/*对轮廓部分，我还是有一些疑惑的，因为按照CV_RETR_CCOMP的定义，是内外层均有轮廓的，这样不会导致轮廓数量计算错误吗，
+			*从程序中可以看到，轮廓数量还是很重要的
+			*/
+
 			//compCount为零时的处理
 			if( compCount == 0 )
 				continue;
@@ -124,6 +129,7 @@ int main( int argc, char** argv )
 
 			//计算处理时间并输出到窗口中
 			double dTime = (double)getTickCount();
+			//这里使用的maskImage是前面绘制了轮廓的底色图，在分水岭算法中当做种子
 			watershed( srcImage, maskImage );
 			dTime = (double)getTickCount() - dTime;
 			printf( "\t处理时间 = %gms\n", dTime*1000./getTickFrequency() );
@@ -135,6 +141,10 @@ int main( int argc, char** argv )
 			//cout << "maskImage" << maskImage << endl << endl;
 
 			//双层循环，将分水岭图像遍历存入watershedImage中
+			//这部分的操作原因完全是按照watershed()函数的输出结果来进行的
+			/*分水岭函数的输出结果中，标记的区域像素值为种子值，而边界线值为-1
+			*根据这个来操作
+			*/
 			Mat watershedImage(maskImage.size(), CV_8UC3);
 			for( i = 0; i < maskImage.rows; i++ )
 				for( j = 0; j < maskImage.cols; j++ )
@@ -145,7 +155,7 @@ int main( int argc, char** argv )
 					else if( index <= 0 || index > compCount )
 						watershedImage.at<Vec3b>(i,j) = Vec3b(0,0,0);
 					else
-						watershedImage.at<Vec3b>(i,j) = colorTab[index - 1];
+						watershedImage.at<Vec3b>(i,j) = colorTab[index - 1];//这边可以产生随机值
 				}
 
 				//混合灰度图和分水岭效果图并显示最终的窗口
